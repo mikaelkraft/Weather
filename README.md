@@ -2,7 +2,7 @@
 
 Quickstart: export WEATHERAPI_KEY=your_key && mvn package && java -jar target/weather-app-1.0-myApp.jar
 
-This is a small Java Swing application that fetches real-time weather information and a short-term forecast from OpenWeatherMap and displays it in a user-friendly GUI.
+This is a small Java Swing application that fetches real-time weather information and a short-term forecast from WeatherAPI.com and displays it in a modern, user-friendly GUI.
 
 Features
 - Search by city name
@@ -45,8 +45,8 @@ rm -f ~/.weatherapp/config.json ~/.weatherapp/secret.key
 
 Other files and locations
 
-- Packaged runnable jar: `target/weather-app-1.0-myApp.jar` (created by `mvn package` and renamed in the build steps)
-- Non-fat jar: `target/weather-app-1.0.jar` (also produced by Maven)
+- Packaged runnable jar: `target/weather-app-1.0-myApp.jar` (created by `mvn package` and renamed to this filename as the primary runnable artifact)
+	- Note: the build may also produce a non-fat `weather-app-1.0.jar` alongside the fat jar; you can safely delete the non-fat jar if you prefer to keep only the runnable fat jar in `target/`.
 - Search history (created in the working directory where you run the app): `weather-search-history.json` (default location)
 - Persistent icon cache (downloaded icons): `~/.weatherapp/icons/` (cached PNG files)
 
