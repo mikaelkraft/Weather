@@ -17,8 +17,6 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -26,16 +24,31 @@ import java.util.function.Consumer;
 import java.nio.file.attribute.PosixFilePermissions;
 
 /**
- * Simple async icon loader with in-memory cache. Downloads icons off the EDT and invokes
- * a callback on the EDT with the loaded ImageIcon (or null on failure).
+ * Async icon loader with in-memory cache and disk persistence.
+ * Icons are normalized to a square size and a lightweight placeholder is
+ * immediately delivered while the real icon is fetched.
  */
 public class IconCache {
     private final Map<String, ImageIcon> cache = new ConcurrentHashMap<>();
     private final Path iconDir = Path.of(System.getProperty("user.home"), ".weatherapp", "icons");
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     private final ExecutorService executor = Executors.newCachedThreadPool(r -> new Thread(r, "IconCache-Loader"));
+    private final int iconSize; // square size (px)
+    private final ImageIcon placeholder;
 
+    /**
+     * Default constructor uses 48x48 icons.
+     */
     public IconCache() {
+        this(48);
+    }
+
+    /**
+     * Create an IconCache that normalizes icons to a square of size {@code iconSize}px.
+     */
+    public IconCache(int iconSize) {
+        this.iconSize = Math.max(16, iconSize);
+        this.placeholder = new ImageIcon(makePlaceholderImage(this.iconSize));
         try {
             Files.createDirectories(iconDir);
         } catch (Exception ex) {
@@ -53,6 +66,9 @@ public class IconCache {
             return;
         }
 
+        // immediately show a lightweight placeholder so UI can layout
+        SwingUtilities.invokeLater(() -> cb.accept(placeholder));
+
         // check disk cache
         try {
             String key = sha256(url);
@@ -60,7 +76,9 @@ public class IconCache {
             if (Files.exists(p)) {
                 BufferedImage img = ImageIO.read(p.toFile());
                 if (img != null) {
-                    ImageIcon icon = new ImageIcon(img);
+                    // ensure normalized size when loading from disk
+                    BufferedImage scaled = scaleToSquare(img, iconSize);
+                    ImageIcon icon = new ImageIcon(scaled);
                     cache.put(url, icon);
                     SwingUtilities.invokeLater(() -> cb.accept(icon));
                     return;
@@ -84,14 +102,15 @@ public class IconCache {
                     try (InputStream in = resp.body()) {
                         BufferedImage img = ImageIO.read(in);
                         if (img != null) {
-                            ImageIcon icon = new ImageIcon(img);
+                            BufferedImage scaled = scaleToSquare(img, iconSize);
+                            ImageIcon icon = new ImageIcon(scaled);
                             cache.put(url, icon);
                             // persist to disk atomically
                             try {
                                 String key = sha256(url);
                                 Path p = iconDir.resolve(key + ".png");
                                 Path tmp = iconDir.resolve(key + ".png.tmp");
-                                ImageIO.write(img, "png", tmp.toFile());
+                                ImageIO.write(scaled, "png", tmp.toFile());
                                 try {
                                     Files.move(tmp, p, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
                                 } catch (AtomicMoveNotSupportedException amnse) {
@@ -117,6 +136,95 @@ public class IconCache {
             }
             SwingUtilities.invokeLater(() -> cb.accept(null));
         });
+    }
+
+    /**
+     * Start downloading and caching the icon for {@code url} without delivering it to a callback.
+     * Useful to warm the cache ahead of time.
+     */
+    public void prefetch(String url) {
+        if (url == null || url.isEmpty()) return;
+        if (cache.containsKey(url)) return;
+
+        executor.submit(() -> {
+            try {
+                String key = sha256(url);
+                Path p = iconDir.resolve(key + ".png");
+                // try disk first
+                if (Files.exists(p)) {
+                    BufferedImage img = ImageIO.read(p.toFile());
+                    if (img != null) {
+                        cache.put(url, new ImageIcon(img));
+                        return;
+                    }
+                }
+
+                HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).timeout(Duration.ofSeconds(8)).GET().build();
+                HttpResponse<InputStream> resp = http.send(req, HttpResponse.BodyHandlers.ofInputStream());
+                if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
+                    try (InputStream in = resp.body()) {
+                        BufferedImage img = ImageIO.read(in);
+                        if (img != null) {
+                            BufferedImage scaled = scaleToSquare(img, iconSize);
+                            cache.put(url, new ImageIcon(scaled));
+                            try {
+                                Path tmp = iconDir.resolve(key + ".png.tmp");
+                                ImageIO.write(scaled, "png", tmp.toFile());
+                                try {
+                                    Files.move(tmp, p, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+                                } catch (AtomicMoveNotSupportedException amnse) {
+                                    Files.move(tmp, p, StandardCopyOption.REPLACE_EXISTING);
+                                }
+                            } catch (Exception ignored) {}
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+        });
+    }
+
+    private static BufferedImage scaleToSquare(BufferedImage src, int size) {
+        if (src.getWidth() == size && src.getHeight() == size) return src;
+        BufferedImage dst = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = dst.createGraphics();
+        try {
+            g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+            // scale while preserving aspect ratio and center
+            double sx = (double) size / src.getWidth();
+            double sy = (double) size / src.getHeight();
+            double s = Math.min(sx, sy);
+            int w = (int) Math.round(src.getWidth() * s);
+            int h = (int) Math.round(src.getHeight() * s);
+            int x = (size - w) / 2;
+            int y = (size - h) / 2;
+            g.setComposite(java.awt.AlphaComposite.SrcOver);
+            g.setColor(new Color(0,0,0,0));
+            g.fillRect(0,0,size,size);
+            g.drawImage(src, x, y, w, h, null);
+        } finally {
+            g.dispose();
+        }
+        return dst;
+    }
+
+    private static BufferedImage makePlaceholderImage(int size) {
+        BufferedImage img = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = img.createGraphics();
+        try {
+            g.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setColor(new Color(220,220,220,255));
+            g.fillRect(0,0,size,size);
+            g.setColor(new Color(200,200,200,255));
+            int pad = Math.max(2, size/8);
+            g.fillRoundRect(pad, pad, size-2*pad, size-2*pad, pad, pad);
+            g.setColor(new Color(160,160,160,255));
+            int c = size/3;
+            g.fillOval((size-c)/2, (size-c)/2, c, c);
+        } finally {
+            g.dispose();
+        }
+        return img;
     }
 
     /**
