@@ -2,6 +2,7 @@ package com.weatherapp;
 
 import com.weatherapp.models.ForecastEntry;
 import com.weatherapp.models.WeatherData;
+import javax.swing.event.SwingPropertyChangeSupport;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -118,9 +119,34 @@ public class Main {
         JLabel statusLabel = new JLabel("Ready");
         root.add(statusLabel, BorderLayout.SOUTH);
 
-        // Instantiate backend services
-        WeatherService weatherService = new WeatherService();
-        HistoryManager historyManager = new HistoryManager();
+    // Instantiate backend services
+    ConfigManager configManager = new ConfigManager();
+
+    // if no env var and no saved config, prompt the user for an API key
+    String envKey = System.getenv("WEATHERAPI_KEY");
+    String savedKey = configManager.getApiKey();
+    if ((envKey == null || envKey.isEmpty()) && (savedKey == null || savedKey.isEmpty())) {
+        String entered = JOptionPane.showInputDialog(frame,
+            "Enter your WeatherAPI.com API key:\n(You can obtain one at https://weatherapi.com)",
+            "API Key Required", JOptionPane.PLAIN_MESSAGE);
+        if (entered == null || entered.trim().isEmpty()) {
+        JOptionPane.showMessageDialog(frame, "API key is required to use this application.", "Missing API Key",
+            JOptionPane.ERROR_MESSAGE);
+        System.exit(1);
+        }
+        entered = entered.trim();
+        int save = JOptionPane.showConfirmDialog(frame, "Save API key to ~/.weatherapp/config.json?",
+            "Save API Key", JOptionPane.YES_NO_OPTION);
+        if (save == JOptionPane.YES_OPTION) {
+        configManager.saveApiKey(entered);
+        }
+    }
+
+    WeatherService weatherService = new WeatherService();
+    HistoryManager historyManager = new HistoryManager();
+
+    // icon loader/cache
+    IconCache iconCache = new IconCache();
 
         // Load history into UI
         historyManager.getHistory().forEach(h -> historyListModel.addElement(h.toString()));
@@ -176,15 +202,12 @@ public class Main {
                                     .withZone(ZoneId.systemDefault());
                             updatedLabel.setText("Updated: " + fmt.format(instant));
 
-                            // load icon asynchronously
+                            // load icon asynchronously using IconCache
                             if (weatherData.getIcon() != null && !weatherData.getIcon().isEmpty()) {
-                                try {
-                                    URL iconUrl = new URL("https://openweathermap.org/img/wn/" + weatherData.getIcon() + "@2x.png");
-                                    ImageIcon icon = new ImageIcon(iconUrl);
+                                String iconUrl = weatherData.getIcon();
+                                iconCache.loadIcon(iconUrl, icon -> {
                                     iconLabel.setIcon(icon);
-                                } catch (Exception ex) {
-                                    iconLabel.setIcon(null);
-                                }
+                                });
                             } else {
                                 iconLabel.setIcon(null);
                             }
