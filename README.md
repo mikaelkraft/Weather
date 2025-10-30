@@ -1,5 +1,7 @@
 # Weather Information App (Java Swing)
 
+Quickstart: export WEATHERAPI_KEY=your_key && mvn package && java -jar target/weather-app-1.0-myApp.jar
+
 This is a small Java Swing application that fetches real-time weather information and a short-term forecast from OpenWeatherMap and displays it in a user-friendly GUI.
 
 Features
@@ -15,20 +17,81 @@ Requirements
 - Java 17+
 - Maven
 - An OpenWeatherMap API key (free tier works)
+This repository was updated to use WeatherAPI.com (weatherapi.com). The application supports multiple ways to provide the API key and stores it securely when saved from the GUI.
 
-This repository was updated to use WeatherAPI.com (weatherapi.com). The app will look for an API key in the following places (in order):
+Where the app obtains the API key (checked in order):
 
-- The environment variable `WEATHERAPI_KEY`
-- The legacy environment variable `OPENWEATHER_API_KEY` (if present)
-- A simple config file at `~/.weatherapp/config.json` (you can save the key from the GUI on first run)
+- Environment variable `WEATHERAPI_KEY` (preferred)
+- Legacy environment variable `OPENWEATHER_API_KEY` (supported for backwards compatibility)
+- Saved encrypted config at `~/.weatherapp/config.json` (if you chose to save the key in the GUI)
 
-Set the environment variable like this (Linux/macOS):
+To set the environment variable (Linux/macOS):
 
 ```bash
 export WEATHERAPI_KEY=your_api_key_here
 ```
 
-Or when you run the GUI, you'll be prompted for a key and can choose to save it to `~/.weatherapp/config.json`.
+If you do not set an environment variable, the GUI will prompt for the API key on first run and offer to save it. When saved, the key is encrypted with AES-GCM and stored in `~/.weatherapp/config.json`. A per-user secret key is stored at `~/.weatherapp/secret.key` and is used to encrypt/decrypt the API key. The app attempts to set restrictive file permissions on `secret.key` on POSIX systems.
+
+Security notes:
+
+- The saved API key in `~/.weatherapp/config.json` is encrypted. The file contents will look like a base64 IV and ciphertext separated by a colon.
+- The secret key file `~/.weatherapp/secret.key` is sensitive — keep it private. If you delete `secret.key`, the saved config cannot be decrypted.
+- To remove the saved API key (the app will then prompt for a key or use the environment variable), remove both files:
+
+```bash
+rm -f ~/.weatherapp/config.json ~/.weatherapp/secret.key
+```
+
+Other files and locations
+
+- Packaged runnable jar: `target/weather-app-1.0-myApp.jar` (created by `mvn package` and renamed in the build steps)
+- Non-fat jar: `target/weather-app-1.0.jar` (also produced by Maven)
+- Search history (created in the working directory where you run the app): `weather-search-history.json` (default location)
+- Persistent icon cache (downloaded icons): `~/.weatherapp/icons/` (cached PNG files)
+
+Running the app
+
+Build:
+
+```bash
+mvn package
+```
+
+Run the GUI (desktop environment required):
+
+```bash
+export WEATHERAPI_KEY=your_api_key_here   # optional if you saved the key
+java -jar target/weather-app-1.0-myApp.jar
+```
+
+Run the ConsoleRunner (headless-friendly) for quick API checks:
+
+```bash
+WEATHERAPI_KEY=your_api_key_here java -cp target/weather-app-1.0-myApp.jar com.weatherapp.ConsoleRunner London metric
+```
+
+UI and appearance
+
+- The app uses FlatLaf for a modern look-and-feel and will select a light or dark theme depending on local time at startup (day → light, night → dark).
+- Backgrounds dynamically change based on the weather timestamp returned by the API (day / sunset / night gradients).
+- Icons are loaded asynchronously and cached on disk under `~/.weatherapp/icons/` to speed subsequent loads.
+
+Testing
+
+- Unit tests use JUnit 5. Run them with:
+
+```bash
+mvn test
+```
+
+Notes & next steps
+
+- The app saves the API key encrypted by default; if you prefer OS-native secure storage (Keychain, Credential Manager, Secret Service) I can add that.
+- Icon cache is persisted as PNG files; if you want eviction or size limits I can add a simple LRU cleanup.
+- The GUI prompt saves the key in plain text only transiently (entered by the user) and stores it encrypted.
+
+If you'd like a README section formatted differently, or want me to add a small CLI to print/decrypt the saved key (requires confirmation), tell me and I'll add it.
 
 - An WeatherAPI.com API key (free tier works)
 
