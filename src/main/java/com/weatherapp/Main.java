@@ -38,6 +38,28 @@ public class Main {
     }
 
     private static void createAndShowGUI() {
+        // Use a modern look and feel (Nimbus if available) and enlarge fonts for a cleaner UI.
+        try {
+            for (UIManager.LookAndFeelInfo info : UIManager.getInstalledLookAndFeels()) {
+                if ("Nimbus".equals(info.getName())) {
+                    UIManager.setLookAndFeel(info.getClassName());
+                    break;
+                }
+            }
+        } catch (Exception e) {
+            // ignore and use default
+        }
+
+        // improve default fonts
+        Font base = UIManager.getFont("Label.font");
+        if (base != null) {
+            Font uiFont = base.deriveFont(base.getSize2D() + 2f);
+            UIManager.put("Label.font", uiFont);
+            UIManager.put("Button.font", uiFont);
+            UIManager.put("ComboBox.font", uiFont);
+            UIManager.put("TextField.font", uiFont);
+            UIManager.put("List.font", uiFont);
+        }
         JFrame frame = new JFrame("Weather Information App");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setSize(800, 600);

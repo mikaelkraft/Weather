@@ -16,11 +16,21 @@ import java.util.List;
  * Simple history manager that records recent searches to a JSON file in the project directory.
  */
 public class HistoryManager {
-    private static final String HISTORY_FILE = "weather-search-history.json";
+    private static final String DEFAULT_HISTORY_FILE = "weather-search-history.json";
     private final List<HistoryEntry> history = new ArrayList<>();
+    private final java.nio.file.Path historyPath;
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
     public HistoryManager() {
+        this(java.nio.file.Path.of(DEFAULT_HISTORY_FILE));
+    }
+
+    /**
+     * Create a HistoryManager that uses the given file path to persist history.
+     * Useful for tests to avoid writing into the repository working directory.
+     */
+    public HistoryManager(java.nio.file.Path filePath) {
+        this.historyPath = filePath;
         load();
     }
 
@@ -37,9 +47,9 @@ public class HistoryManager {
 
     private void load() {
         try {
-            File f = new File(HISTORY_FILE);
+            java.io.File f = historyPath.toFile();
             if (!f.exists()) return;
-            try (FileReader fr = new FileReader(f)) {
+            try (java.io.FileReader fr = new java.io.FileReader(f)) {
                 JsonArray arr = JsonParser.parseReader(fr).getAsJsonArray();
                 for (JsonElement e : arr) {
                     JsonObject o = e.getAsJsonObject();
@@ -55,8 +65,8 @@ public class HistoryManager {
 
     private void save() {
         try {
-            File f = new File(HISTORY_FILE);
-            try (FileWriter fw = new FileWriter(f)) {
+            java.io.File f = historyPath.toFile();
+            try (java.io.FileWriter fw = new java.io.FileWriter(f)) {
                 JsonArray arr = new JsonArray();
                 for (HistoryEntry he : history) {
                     JsonObject o = new JsonObject();
