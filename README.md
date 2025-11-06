@@ -1,4 +1,6 @@
 # Weather Information App (Java Swing)
+# Note:
+`Requesting extra features should come as issues with proper labels as REQUESTS`
 
 Quickstart: export WEATHERAPI_KEY=your_key && mvn package && java -jar target/weather-app-1.0-myApp.jar
 
@@ -87,16 +89,16 @@ mvn test
 
 Notes & next steps
 
-- The app saves the API key encrypted by default; if you prefer OS-native secure storage (Keychain, Credential Manager, Secret Service) I can add that.
+- The app saves the API key encrypted by default; if you prefer OS-native secure storage (Keychain, Credential Manager, Secret Service) I can add that if you request via issues.
 - Icon cache is persisted as PNG files; if you want eviction or size limits I can add a simple LRU cleanup.
 - The GUI prompt saves the key in plain text only transiently (entered by the user) and stores it encrypted.
 
-If you'd like a README section formatted differently, or want me to add a small CLI to print/decrypt the saved key (requires confirmation), tell me and I'll add it.
+If you'd like a README section formatted differently, or want me to add a small CLI to print/decrypt the saved key (requires confirmation), request and I'll add it.
 
-- An WeatherAPI.com API key (free tier works)
+- A WeatherAPI.com API key (free tier works)
 
 Setup
-1. Obtain an API key from OpenWeatherMap: https://openweathermap.org/api
+1. Obtain an API key from OpenWeatherMap:(Legacy) https://openweathermap.org/api
 2. Set the environment variable `OPENWEATHER_API_KEY` to your API key. Example (Linux/macOS):
 
 ```bash
@@ -130,13 +132,13 @@ Usage
 - The right panel shows a short forecast and your search history with timestamps.
 
 Implementation notes
-- The app uses the OpenWeatherMap current weather and 5-day/3-hour forecast endpoints.
+- The app uses the WeatherApi/OpenWeatherMap current weather and 5-day/3-hour forecast endpoints.
 - JSON parsing is done with Gson.
 - The app saves recent searches to `weather-search-history.json` in the working directory.
-- Icons are loaded directly from OpenWeatherMap icon URLs (no local binaries are committed).
+- Icons are loaded directly from WeatherApi/OpenWeatherMap icon URLs (no local binaries are committed).
 
 Extending / Next steps
-- Add Fuzzy matching or auto-complete for city names.
+- I will add Fuzzy matching or auto-complete for city names.
 - Improve UI with JavaFX (if desired).
 - Add unit tests around JSON parsing and HistoryManager.
 
